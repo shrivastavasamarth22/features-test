@@ -1,8 +1,7 @@
 export class Point {
-    constructor(c, identifier) {
+    constructor(c) {
         this.latitude = c.latitude;
         this.longitude = c.longitude;
-        this.identifier = identifier;
     }
 
     get x() {

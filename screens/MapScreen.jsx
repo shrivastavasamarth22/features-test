@@ -1,9 +1,10 @@
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
-import MapView, {Marker, Polygon} from 'react-native-maps';
+import MapView, {Circle, Marker, PROVIDER_GOOGLE, Polygon, Polyline} from "react-native-maps";
 import React, {useState} from 'react';
 
 import {Point} from "../models/Point";
 import {convexHull} from "../sortPoints";
+import {useIsFocused} from "@react-navigation/native";
 
 const PolygonScreen = () => {
     const initialRegion = {

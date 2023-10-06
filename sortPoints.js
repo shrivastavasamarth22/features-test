@@ -1,82 +1,129 @@
-const sortPoints = (S) => {
-    // Select the rightmost lowest point P0 in S
-    const P0 = { x: 0, y: 0 };
-    // Get the lowest y first
-    P0.y = Math.min.apply(null, S.map(p => p.y));
-    // Get all the points on that y
-    const yPoints = S.filter(p => p.y === P0.y);
-    // Get the rightmost point of that y
-    P0.x = Math.max.apply(null, yPoints.map(p => p.x));
-    // Sort S radially (ccw) with P0 as a center
-    S.sort((a, b) => angleCompare(P0, a, b));
-    return S;
+/*
+ * @param {Object} cpt a point to be measured from the baseline
+ * @param {Array} bl the baseline, as represented by a two-element
+ *   array of latlng objects.
+ * @returns {Number} an approximate distance measure
+ */
+
+const getDistance = (cpt, bl) => {
+    const vY = bl[1].latitude - bl[0].latitude,
+        vX = bl[0].longitude - bl[1].longitude
+    return (vX * (cpt.latitude - bl[0].latitude) + vY * (cpt.longitude - bl[0].longitude))
 }
 
-// Use isLeft() comparisons
-// For ties, discard the closer points
-const angleCompare = (P, A, B) => {
-    const left = isLeftCompare(P, A, B);
-    if (left === 0) return distCompare(P, A, B);
-    return left;
-}
+/*
+ * @param {Array} baseLine a two-element array of lat-lng objects
+ *   representing the baseline to project from
+ * @param {Array} latLngs an array of latlng objects
+ * @returns {Object} the maximum point and all new points to stay
+ *   in consideration for the hull.
+ */
 
-// To determine which side of the line A(x1, y1)B(x2, y2)
-// a point P(x, y) falls on, the formula is:
-// d = (x - x1)(y2 - y1) - (y - y1)(x2 - x1)
-// If d < 0 then the point lies on one side of the line
-// and if d > 0 then it lies on the other side.
-// If d = 0 then the point lies exactly on the line.
-const isLeftCompare = (P, A, B) => {
-    return (P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x);
-}
+const findMostDistantPointFromBaseLine = (baseLine, latLngs) => {
+    let maxD = 0,
+        maxPt = null,
+        newPoints = [],
+        i, pt, d;
 
-// Distance between two points A(x1,y1) and B(x2,y2)
-// is given by: d = √((x2 - x1)² + (y2 - y1)²).
-// Since we only care about the sign of the outcome
-// and not the outcome itself, we don't need to find
-// the square roots of the two segments, we can use
-// the d² just as fine.
-const distCompare = (P, A, B) => {
-    const distAP = Math.pow(P.x - A.x, 2) + Math.pow(P.y - A.y, 2);
-    const distBP = Math.pow(P.x - B.x, 2) + Math.pow(P.y - B.y, 2);
-    return distAP - distBP;
-}
+    for (i = latLngs.length - 1; i >= 0; i--) {
+        pt = latLngs[i]
+        d = getDistance(pt, baseLine)
 
-export const convexHull = (points) => {
-    // Input: a  set of points S = {P = (P.x,P.y)}
-    const S = points.splice(0);
-    // Let P[N] be the sorted array of points with P[0]=P0
-    const P = sortPoints(S);
-    // Push P[0] and P[1] onto a stack Ω
-    const OMEGA = [];
-    OMEGA.push(P[0], P[1]);
-    // while i < N
-    for (let i = 0, { length } = P; i < length;) {
-        // Let PT1 = the top point on Ω
-        const PT1 = OMEGA[OMEGA.length - 1];
-        // If (PT1 == P[0]) {
-        //    Push P[i] onto Ω
-        //    increment i
-        // }
-        if (PT1 === P[0]) {
-            OMEGA.push(P[i]);
-            i++;
+        if (d > 0) {
+            newPoints.push(pt)
         } else {
-            // Let PT2 = the second top point on Ω
-            const PT2 = OMEGA[OMEGA.length - 2];
-            // If (P[i] is strictly left of the line  PT2 to PT1) {
-            //    Push P[i] onto Ω
-            //    increment i
-            // }
-            const PT2isLeft = isLeftCompare(P[i], PT2, PT1);
-            if (PT2isLeft < 0) {
-                OMEGA.push(P[i]);
-                i++;
-            } else {
-                // Pop the top point PT1 off the stack
-                OMEGA.pop();
-            }
+            continue
+        }
+
+        if (d > maxD) {
+            maxD = d;
+            maxPt = pt
         }
     }
-    return OMEGA;
+
+    return {
+        maxPoint: maxPt,
+        newPoints
+    }
+}
+
+/*
+ * Given a baseline, compute the convex hull of latLngs as an array
+ * of latLngs.
+ *
+ * @param {Array} latLngs
+ * @returns {Array}
+ */
+
+const buildConvexHull = (baseLine, latLngs) => {
+    let convexHullBaseLines = [],
+        t = findMostDistantPointFromBaseLine(baseLine, latLngs)
+
+    if (t.maxPoint) { // If there is still a point "outside" the baseline
+        convexHullBaseLines =
+            convexHullBaseLines.concat(
+                buildConvexHull([baseLine[0], t.maxPoint], t.newPoints)
+            )
+        convexHullBaseLines =
+            convexHullBaseLines.concat(
+                buildConvexHull([t.maxPoint, baseLine[1]], t.newPoints)
+            )
+        return convexHullBaseLines
+    } else { // if there is no more point "outside" the baseline, the current baseline is part of the convex hull
+        return [baseLine[0]]
+    }
+}
+
+/*
+ * Given an array of latlngs, compute a convex hull as an array
+ * of latlngs
+ *
+ * @param {Array} latLngs -> { latitude: XXXX, longitude: XXXX }
+ * @returns {Array}
+ */
+
+module.exports = function calculateConvexHull(latLngs) {
+    // find first baseline
+    let maxLat = false,
+        minLat = false,
+        maxLng = false,
+        minLng = false,
+        maxLatPt = null,
+        minLatPt = null,
+        maxLngPt = null,
+        minLngPt = null,
+        maxPt = null,
+        minPt = null,
+        i
+
+    for (i = latLngs.length - 1; i >= 0; i--) {
+        let pt = latLngs[i]
+        if (maxLat === false || pt.latitude > maxLat) {
+            maxLatPt = pt
+            maxLat = pt.latitude
+        }
+        if (minLat === false || pt.latitude < minLat) {
+            minLatPt = pt
+            minLat = pt.latitude
+        }
+        if (maxLng === false || pt.longitude > maxLng) {
+            maxLngPt = pt
+            maxLng = pt.longitude
+        }
+        if (minLng === false || pt.longitude < minLng) {
+            minLngPt = pt
+            minLng = pt.longitude
+        }
+    }
+
+    if (minLat !== maxLat) {
+        minPt = minLatPt
+        maxPt = maxLatPt
+    } else {
+        minPt = minLngPt
+        maxPt = maxLngPt
+    }
+
+    return [].concat(buildConvexHull([minPt, maxPt], latLngs),
+        buildConvexHull([maxPt, minPt], latLngs))
 }
