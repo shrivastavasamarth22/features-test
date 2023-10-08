@@ -1,5 +1,4 @@
-import React, { useCallback } from "react";
-import { Button, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Button, StyleSheet, Text, View } from "react-native";
 import MapView, {
     Circle,
     Marker,
@@ -7,14 +6,14 @@ import MapView, {
     Polygon,
     Polyline,
 } from "react-native-maps";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 import { Point } from "../models/Point";
 import { calculateConvexHull } from "../sortPoints";
 import { haversine } from "haversine-distance";
 import { useIsFocused } from "@react-navigation/native";
-import { useLocation } from "../hooks/useLocation";
+import useLocation  from "../hooks/useLocation";
 
 const MapScreen = () => {
     const initialRegion = {
@@ -236,6 +235,7 @@ const MapScreen = () => {
     ];
 
     if (currentLocation) {
+        console.log(currentLocation.coords);
         const onPress = () => {
             if (haversine(currentLocation, initialRegion) <= 10 && recording) {
                 dispatch(locationActions.stopRecording());
