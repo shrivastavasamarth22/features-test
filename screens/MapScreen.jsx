@@ -1,9 +1,15 @@
 import {
     Accuracy,
-    requestBackgroundPermissionsAsync,
+    useBackgroundPermissions,
     watchPositionAsync,
 } from "expo-location";
-import { ActivityIndicator, Button, StyleSheet, Text, View } from "react-native";
+import {
+    ActivityIndicator,
+    Button,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 import MapView, {
     Circle,
     Marker,
@@ -11,7 +17,7 @@ import MapView, {
     Polygon,
     Polyline,
 } from "react-native-maps";
-import React, {useEffect, useState} from "react";
+import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 import { calculateConvexHull } from "../sortPoints";
@@ -26,6 +32,10 @@ const MapScreen = () => {
         latitudeDelta: 0.03,
         longitudeDelta: 0.03,
     };
+
+    const [subscriber, setSubscriber] = useState(null);
+    const [errorMsg, setErrorMsg] = useState(null);
+    const [status, requestPermission] = useBackgroundPermissions();
 
     const currentLocation = useSelector(
         (state) => state.location.currentLocation
@@ -45,7 +55,7 @@ const MapScreen = () => {
     };
 
     const startLocationTracking = async () => {
-        let { status } = await requestBackgroundPermissionsAsync();
+        requestPermission();
         if (status !== "granted") {
             setErrorMsg("Permission to access location was denied");
             return;
@@ -69,10 +79,6 @@ const MapScreen = () => {
         }
     };
 
-    
-    const [subscriber, setSubscriber] = useState(null);
-    const [errorMsg, setErrorMsg] = useState(null);
-    
     useEffect(() => {
         if (isFocused || recording) {
             startLocationTracking().then((newSubscriber) => {
@@ -86,8 +92,6 @@ const MapScreen = () => {
             stopLocationTracking(subscriber);
         };
     }, [isFocused, recording]);
-
-    
 
     if (currentLocation) {
         console.log(currentLocation.coords);
